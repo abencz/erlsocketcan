@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdint.h>
  
 #include <net/if.h>
 #include <sys/types.h>
@@ -38,6 +39,18 @@ static int open(char* port)
   }
 
   return s;
+}
+
+static int can_send(int s, uint32_t can_id, uint8_t length, unsigned char data[8])
+{
+  struct can_frame frame;
+
+  frame.can_id  = 0x123;
+  frame.can_dlc = 2;
+  frame.data[0] = 0x11;
+  frame.data[1] = 0x22;
+
+  return write(s, &frame, sizeof(struct can_frame));
 }
 
 static int twice(int n)
@@ -80,6 +93,9 @@ static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
     strncpy(port, buff+1, bufflen-1);
     port[bufflen-1] = '\0';
     res = open(buff+1);
+  } else if (fn == 4) {
+    int s = arg;
+    res = can_send(s, 0x123, 2, "\011\022");
   }
 
   driver_output(d->port, &res, 1);
