@@ -15,7 +15,7 @@ start(SharedLib) ->
 
 init(SharedLib) ->
   register(socketcan_lid, self()),
-  Port = open_port({spawn, SharedLib}, []),
+  Port = open_port({spawn, SharedLib}, [binary]),
   loop(Port).
 
 stop() ->
@@ -36,10 +36,13 @@ call_port(Msg) ->
 loop(Port) ->
   receive
     {call, Caller, Msg} ->
-      Port ! {self(), {command, encode(Msg)}},
+      %Port ! {self(), {command, encode(Msg)}},
+      erlang:port_command(Port, term_to_binary(Msg)),
       receive
         {Port, {data, Data}} ->
-          Caller ! {socketcan_lid, decode(Data)}
+          %Caller ! {socketcan_lid, decode(Data)}
+          %<<_, _, Terms>> = Data,
+          Caller ! binary_to_term(Data)
       end,
       loop(Port);
     stop ->
@@ -53,9 +56,9 @@ loop(Port) ->
       exit(port_terminated)
   end.
 
-encode({twice, X}) -> [1, X];
-encode({sum, X, Y}) -> [2, X, Y];
-encode({open, Port}) -> [3, Port];
-encode({send, Socket, CanID, Data}) -> [4, Socket, CanID, Data].
-
-decode([Int]) -> Int.
+%encode({twice, X}) -> [1, X];
+%encode({sum, X, Y}) -> [2, X, Y];
+%encode({open, Port}) -> [3, Port];
+%encode({send, Socket, CanID, Data}) -> [4, Socket, CanID, Data].
+%
+%decode([Int]) -> Int.
