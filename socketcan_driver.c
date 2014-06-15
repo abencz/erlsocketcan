@@ -45,10 +45,9 @@ static int can_send(int s, uint32_t can_id, uint8_t length, unsigned char data[8
 {
   struct can_frame frame;
 
-  frame.can_id  = 0x123;
-  frame.can_dlc = 2;
-  frame.data[0] = 0x11;
-  frame.data[1] = 0x22;
+  frame.can_id  = can_id;
+  frame.can_dlc = length;
+  memcpy(frame.data, data, length);
 
   return write(s, &frame, sizeof(struct can_frame));
 }
@@ -94,8 +93,14 @@ static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
     port[bufflen-1] = '\0';
     res = open(buff+1);
   } else if (fn == 4) {
-    int s = arg;
-    res = can_send(s, 0x123, 2, "\011\022");
+    if (bufflen < 4) {
+      res = 255;
+    } else {
+      int data_len = bufflen - 4;
+      data_len = min(data_len, 8);
+      uint16_t can_id = *((uint16_t*) &buff[2]);
+      res = can_send(arg, can_id, data_len, &buff[4]);
+    }
   }
 
   driver_output(d->port, &res, 1);
