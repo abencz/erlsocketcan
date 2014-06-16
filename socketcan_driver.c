@@ -16,13 +16,14 @@
 #include "ei.h"
 
 #define RESULT_BUF_MAX_LEN 100
+#define PORT_NAME_MAX_LEN 100
 
 typedef struct {
   char *buf;
   int len;
 } port_msg;
 
-typedef int (*port_fcn)(const port_msg, int, ei_x_buff*);
+typedef int (*port_fcn)(const port_msg, int*, ei_x_buff*);
 
 typedef struct {
   const char *name;
@@ -68,16 +69,6 @@ static int can_send(int s, uint32_t can_id, uint8_t length, unsigned char data[8
   return write(s, &frame, sizeof(struct can_frame));
 }
 
-static int twice(int n)
-{
-  return 2 * n;
-}
-
-static int sum(int n1, int n2)
-{
-  return n1 + n2;
-}
-
 typedef struct {
   ErlDrvPort port;
 } example_data;
@@ -101,10 +92,10 @@ static void set_error(ei_x_buff *msg, int result)
   ei_x_encode_long(msg, result);
 }
 
-static int twice_fn(const port_msg in, int index, ei_x_buff *out)
+static int twice_fn(const port_msg in, int *index, ei_x_buff *out)
 {
   long value;
-  if (ei_decode_long(in.buf, &index, &value)) {
+  if (ei_decode_long(in.buf, index, &value)) {
     set_error(out, 7);
     return 0;
   }
@@ -114,8 +105,69 @@ static int twice_fn(const port_msg in, int index, ei_x_buff *out)
   return 0;
 }
 
+static int open_fn(const port_msg in, int *index, ei_x_buff *out)
+{
+  char *portname;
+  int type, size;
+
+  // get string size
+  ei_get_type(in.buf, index, &type, &size);
+  portname = driver_alloc(size + 1); // +1 for null terminator
+
+  if (ei_decode_string(in.buf, index, portname)) {
+    set_error(out, 8);
+    driver_free(portname);
+    return 0;
+  }
+
+  int port = open(portname);
+  if (port < 0) {
+    set_error(out, port);
+  } else {
+    ei_x_encode_atom(out, "ok");
+    ei_x_encode_long(out, port);
+  }
+
+  driver_free(portname);
+
+  return 0;
+}
+
+static int send_fn(const port_msg in, int *index, ei_x_buff *out)
+{
+  long socket, can_id, bin_size;
+  int type, size;
+  char *data;
+
+  if (ei_decode_long(in.buf, index, &socket) ||
+      ei_decode_long(in.buf, index, &can_id)) {
+    set_error(out, 8);
+    return 0;
+  }
+
+  ei_get_type(in.buf, index, &type, &size);
+  if (size > 8) {
+    set_error(out, 8);
+    return 0;
+  }
+  data = driver_alloc(size);
+
+  if (ei_decode_binary(in.buf, index, data, &bin_size)) {
+    set_error(out, 8);
+    driver_free(data);
+    return 0;
+  }
+
+  int res = can_send(socket, can_id, size, data);
+  ei_x_encode_atom(out, "ok");
+  ei_x_encode_long(out, res);
+  return 0;
+}
+
 port_function functions[] = {
   {"twice", 1, twice_fn},
+  {"open", 1, open_fn},
+  {"send", 3, send_fn},
   {"", 0, NULL} // guard
 };
 
@@ -165,7 +217,7 @@ static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
         set_error(&result, 5);
         break;
       }
-      current_function->fcn(in_msg, index, &result);
+      current_function->fcn(in_msg, &index, &result);
       break;
     }
 

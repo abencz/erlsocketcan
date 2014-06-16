@@ -40,8 +40,6 @@ loop(Port) ->
       erlang:port_command(Port, term_to_binary(Msg)),
       receive
         {Port, {data, Data}} ->
-          %Caller ! {socketcan_lid, decode(Data)}
-          %<<_, _, Terms>> = Data,
           Caller ! {socketcan_lid, binary_to_term(Data)}
       end,
       loop(Port);
