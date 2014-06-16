@@ -42,7 +42,7 @@ loop(Port) ->
         {Port, {data, Data}} ->
           %Caller ! {socketcan_lid, decode(Data)}
           %<<_, _, Terms>> = Data,
-          Caller ! binary_to_term(Data)
+          Caller ! {socketcan_lid, binary_to_term(Data)}
       end,
       loop(Port);
     stop ->

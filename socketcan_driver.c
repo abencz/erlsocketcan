@@ -85,6 +85,7 @@ typedef struct {
 static ErlDrvData example_drv_start(ErlDrvPort port, char *buff)
 {
   example_data *d = (example_data*)driver_alloc(sizeof(example_data));
+  set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
   d->port = port;
   return (ErlDrvData) d;
 }
@@ -171,46 +172,13 @@ static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
     current_function++;
   }
 
-  //char fn = buff[0], arg = buff[1], res;
-
-  //if (fn == 1) {
-  //  res = twice(arg);
-  //} else if (fn == 2) {
-  //  res = sum(buff[1], buff[2]);
-  //} else if (fn == 3) {
-  //  char *port = malloc(bufflen); /* -1 for first arg, +1 for terminator */
-  //  strncpy(port, buff+1, bufflen-1);
-  //  port[bufflen-1] = '\0';
-  //  res = open(buff+1);
-  //} else if (fn == 4) {
-  //  if (bufflen < 4) {
-  //    res = 255;
-  //  } else {
-  //    int data_len = bufflen - 4;
-  //    data_len = min(data_len, 8);
-  //    uint16_t can_id = *((uint16_t*) &buff[2]);
-  //    res = can_send(arg, can_id, data_len, &buff[4]);
-  //  }
-  //}
 
 stop_processing:
   {
-    int out_size = result.index + 2;
-    //int out_size = result.index;
-    //ErlDrvBinary *bin_out = driver_alloc_binary(out_size);
-    //char *bin_data = bin_out->orig_bytes;
-    //memcpy(bin_data, &result.index, sizeof(result.index));
-    //bin_data[0] = (result.index >> 8) & 0xff;
-    //bin_data[1] = result.index & 0xff;
-    //memcpy(bin_data + 2, result.buff, result.index);
-    //driver_output_binary(d->port, NULL, 0, bin_out, 0, out_size);
-    //free(buf_out);
     driver_output(d->port, result.buff, result.index);
-    if (d->connecting) 
-      driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 0);
   }
 
-  //ei_x_free(&result);
+  ei_x_free(&result);
 }
 
 ErlDrvEntry example_driver_entry = {
