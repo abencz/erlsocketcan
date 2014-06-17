@@ -35,7 +35,6 @@ call_port(Msg) ->
 loop(Port) ->
   receive
     {call, Caller, Msg} ->
-      %Port ! {self(), {command, encode(Msg)}},
       erlang:port_command(Port, term_to_binary(Msg)),
       receive
         {Port, {data, Data}} ->
