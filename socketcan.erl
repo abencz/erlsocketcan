@@ -1,6 +1,6 @@
 -module(socketcan).
 -export([start/0, stop/0]).
--export([twice/1, sum/2, open/1, send/3]).
+-export([open/1, send/3, recv/1]).
 
 start() ->
   start("socketcan_driver").
@@ -21,10 +21,9 @@ init(SharedLib) ->
 stop() ->
   socketcan_lid ! stop.
 
-twice(X) -> call_port({twice, X}).
-sum(X, Y) -> call_port({sum, X, Y}).
 open(Port) -> call_port({open, Port}).
 send(Socket, CanID, Data) -> call_port({send, Socket, CanID, Data}).
+recv(Socket) -> call_port({recv, Socket}).
 
 call_port(Msg) ->
   socketcan_lid ! {call, self(), Msg},
@@ -54,9 +53,3 @@ loop(Port) ->
       exit(port_terminated)
   end.
 
-%encode({twice, X}) -> [1, X];
-%encode({sum, X, Y}) -> [2, X, Y];
-%encode({open, Port}) -> [3, Port];
-%encode({send, Socket, CanID, Data}) -> [4, Socket, CanID, Data].
-%
-%decode([Int]) -> Int.

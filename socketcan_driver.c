@@ -21,6 +21,7 @@
 typedef struct {
   char *buf;
   int len;
+  ErlDrvPort *port;
 } port_msg;
 
 typedef int (*port_fcn)(const port_msg, int*, ei_x_buff*);
@@ -30,6 +31,11 @@ typedef struct {
   int arity;
   port_fcn fcn;
 } port_function;
+
+typedef struct {
+  struct can_frame frame;
+  int result;
+} async_result;
 
 static int open(char* port)
 {
@@ -130,6 +136,7 @@ static int open_fn(const port_msg in, int *index, ei_x_buff *out)
 
   driver_free(portname);
 
+  driver_output(*in.port, out->buff, out->index);
   return 0;
 }
 
@@ -161,20 +168,47 @@ static int send_fn(const port_msg in, int *index, ei_x_buff *out)
   int res = can_send(socket, can_id, size, data);
   ei_x_encode_atom(out, "ok");
   ei_x_encode_long(out, res);
+
+  driver_output(*in.port, out->buff, out->index);
   return 0;
+}
+
+typedef struct {
+  long socket;
+  struct can_frame frame;
+} async_context;
+
+static void recv_async(void *async_data)
+{
+  async_context *data = async_data;
+  read(data->socket, &data->frame, sizeof(data->frame));
+}
+
+static void free_async(void *async_data)
+{
+  async_context *data = async_data;
+  driver_free(data);
+}
+
+static int recv_fn(const port_msg in, int *index, ei_x_buff *out)
+{
+  async_context *async_data = driver_alloc(sizeof(async_context));
+  ei_decode_long(in.buf, index, &async_data->socket);
+  driver_async(*in.port, NULL, recv_async, async_data, free_async);
 }
 
 port_function functions[] = {
   {"twice", 1, twice_fn},
   {"open", 1, open_fn},
   {"send", 3, send_fn},
+  {"recv", 1, recv_fn},
   {"", 0, NULL} // guard
 };
 
 static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
 {
   example_data *d = (example_data*)handle;
-  port_msg in_msg = {buff, bufflen};
+  port_msg in_msg = {buff, bufflen, &d->port};
 
   char command[MAXATOMLEN];
   int index, version, arity;
@@ -218,7 +252,8 @@ static void example_drv_output(ErlDrvData handle, char *buff, int bufflen)
         break;
       }
       current_function->fcn(in_msg, &index, &result);
-      break;
+      ei_x_free(&result);
+      return;
     }
 
     current_function++;
@@ -233,6 +268,26 @@ stop_processing:
   ei_x_free(&result);
 }
 
+static void can_ready(ErlDrvData drv_data, ErlDrvThreadData async_data)
+{
+  async_context *data = (async_context*)async_data;
+
+  example_data *d = (example_data*)drv_data;
+
+  ei_x_buff result;
+
+  ei_x_new_with_version(&result);
+  ei_x_encode_tuple_header(&result, 2);
+  ei_x_encode_atom(&result, "ok");
+
+  ei_x_encode_tuple_header(&result, 2);
+  ei_x_encode_long(&result, data->frame.can_id);
+  ei_x_encode_binary(&result, data->frame.data, data->frame.can_dlc);
+
+  driver_output(d->port, result.buff, result.index);
+  ei_x_free(&result);
+}
+
 ErlDrvEntry example_driver_entry = {
   NULL,
   example_drv_start,
@@ -242,6 +297,11 @@ ErlDrvEntry example_driver_entry = {
   NULL,
   "socketcan_driver",
   NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  can_ready,
   NULL,
   NULL,
   NULL
