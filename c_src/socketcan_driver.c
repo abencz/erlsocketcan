@@ -66,7 +66,7 @@ static int open(char* port)
   return s;
 }
 
-static int can_send(int s, uint32_t can_id, uint8_t length, unsigned char data[8])
+static ssize_t can_send(int s, uint32_t can_id, uint8_t length, unsigned char data[8])
 {
   struct can_frame frame;
 
@@ -83,38 +83,11 @@ static void set_error(ei_x_buff *msg, int result)
   ei_x_encode_long(msg, result);
 }
 
-static void open_fn(const port_context in, int *index, ei_x_buff *out)
-{
-  char *portname;
-  int type, size;
-
-  // get string size
-  ei_get_type(in.buf, index, &type, &size);
-  portname = driver_alloc(size + 1); // +1 for null terminator
-
-  if (ei_decode_string(in.buf, index, portname)) {
-    set_error(out, 8);
-    goto finish;
-  }
-
-  int port = open(portname);
-  if (port < 0) {
-    set_error(out, port);
-  } else {
-    ei_x_encode_atom(out, "ok");
-    ei_x_encode_long(out, port);
-  }
-
-finish:
-  driver_free(portname);
-  driver_output(*in.port, out->buff, out->index);
-}
-
 static void send_fn(const port_context in, int *index, ei_x_buff *out)
 {
   long socket, can_id, bin_size;
   int type, size;
-  char *data;
+  unsigned char *data;
 
   if (ei_decode_long(in.buf, index, &socket) ||
       ei_decode_long(in.buf, index, &can_id)) {
@@ -135,7 +108,7 @@ static void send_fn(const port_context in, int *index, ei_x_buff *out)
     goto finish;
   }
 
-  int res = can_send(socket, can_id, size, data);
+  ssize_t res = can_send(socket, can_id, size, data);
   ei_x_encode_atom(out, "ok");
   ei_x_encode_long(out, res);
 
@@ -169,11 +142,61 @@ static void recv_fn(const port_context in, int *index, ei_x_buff *out)
   driver_async(*in.port, NULL, recv_async, async_data, free_async);
 }
 
+static void open_fn(const port_context in, int *index, ei_x_buff *out)
+{
+  char *portname;
+  int type, size;
+
+  // get string size
+  ei_get_type(in.buf, index, &type, &size);
+  portname = driver_alloc(size + 1); // +1 for null terminator
+
+  if (ei_decode_string(in.buf, index, portname)) {
+    set_error(out, 8);
+    goto finish;
+  }
+
+  int port = open(portname);
+  if (port < 0) {
+    set_error(out, port);
+  } else {
+    ei_x_encode_atom(out, "ok");
+    ei_x_encode_long(out, port);
+  }
+
+finish:
+  driver_free(portname);
+  driver_output(*in.port, out->buff, out->index);
+}
+
+static void close_fn(const port_context in, int *index, ei_x_buff *out)
+{
+  long socket;
+  
+  if (ei_decode_long(in.buf, index, &socket)) {
+    set_error(out, 8);
+    goto finish;
+  }
+
+  int res = close(socket);
+
+  if (res) {
+    set_error(out, res);
+  } else {
+    ei_x_encode_atom(out, "ok");
+    ei_x_encode_long(out, res);
+  }
+
+finish:
+  driver_output(*in.port, out->buff, out->index);
+}
+
 /* functions that may be called from erlang */
 static port_function functions[] = {
-  {"open", 1, open_fn},
   {"send", 3, send_fn},
   {"recv", 1, recv_fn},
+  {"open", 1, open_fn},
+  {"close", 1, close_fn},
   {"", 0, NULL} // guard
 };
 

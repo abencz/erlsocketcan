@@ -1,6 +1,6 @@
 -module(socketcan).
 -export([start/0, stop/0]).
--export([open/1, send/3, recv/1]).
+-export([open/1, close/1, send/3, recv/1]).
 
 start() ->
   start("socketcan_drv").
@@ -24,6 +24,7 @@ stop() ->
   socketcan_lid ! stop.
 
 open(Port) -> call_port({open, Port}).
+close(Port) -> call_port({close, Port}).
 send(Socket, CanID, Data) -> call_port({send, Socket, CanID, Data}).
 recv(Socket) -> call_port({recv, Socket}).
 
