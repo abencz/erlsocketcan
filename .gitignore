@@ -1,0 +1,4 @@
+.rebar
+priv
+ebin
+c_src/*.o
