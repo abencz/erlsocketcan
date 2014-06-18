@@ -3,13 +3,15 @@
 -export([open/1, send/3, recv/1]).
 
 start() ->
-  start("socketcan_driver").
+  start("socketcan_drv").
+
 
 start(SharedLib) ->
-  case erl_ddll:load_driver("build", SharedLib) of
+  SearchDir = filename:join([filename:dirname(code:which(socketcan)), "..", "priv"]),
+  case erl_ddll:load_driver(SearchDir, SharedLib) of
     ok -> ok;
     {error, already_loaded} -> ok;
-    _ -> exit({error, could_not_load_driver})
+    {error, Error} -> exit({error, erl_ddll:format_error(Error)})
   end,
   spawn(fun() -> init(SharedLib) end).
 

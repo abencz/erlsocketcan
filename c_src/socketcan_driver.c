@@ -276,7 +276,7 @@ ErlDrvEntry socketcan_driver_entry = {
   socketcan_output,
   NULL,                 /* ready_input */
   NULL,                 /* ready_output */
-  "socketcan_driver",   /* driver name */
+  "socketcan_drv",      /* driver name */
   NULL,                 /* finish */
   NULL,                 /* handle */
   NULL,                 /* control */

@@ -1,0 +1,14 @@
+{application, socketcan,
+ [
+  {description, "An Erlang socketcan library"},
+  {vsn, "1"},
+  {modules, [
+             socketcan
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
